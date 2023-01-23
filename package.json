@@ -1,0 +1,30 @@
+{
+  "name": "oink",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "dev": "nodemon --watch src src/index.ts"
+  },
+  "repository": "https://github.com/EntryHack/OiNK.git",
+  "author": "thoratica <me@tica.fun>",
+  "devDependencies": {
+    "@types/node": "^18.11.18",
+    "@types/tough-cookie": "^4.0.2",
+    "@types/tough-cookie-file-store": "^2.0.1",
+    "module-alias": "^2.2.2",
+    "nodemon": "^2.0.20",
+    "ts-node": "^10.9.1",
+    "typescript": "^4.9.4"
+  },
+  "dependencies": {
+    "fetch-cookie": "^2.1.0",
+    "tough-cookie": "^4.1.2",
+    "tough-cookie-file-store": "^2.0.3"
+  },
+  "_moduleAliases": {
+    "@": "dist"
+  }
+}

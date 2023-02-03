@@ -1,9 +1,10 @@
 import fetchCookie from "fetch-cookie";
-import { Cookie, CookieJar } from "tough-cookie";
+import { CookieJar } from "tough-cookie";
 import { FileCookieStore } from "tough-cookie-file-store";
 
-const cookieJar = new CookieJar(new FileCookieStore("./cookie.json"));
+export const createFetch = (fileCookieStorePath?: string) => {
+  const cookieJar = fileCookieStorePath ? new CookieJar(new FileCookieStore("./cookie.json")) : new CookieJar();
+  const fetch = fetchCookie(globalThis.fetch, cookieJar);
 
-const fetch = fetchCookie(globalThis.fetch, cookieJar);
-
-export default fetch;
+  return fetch;
+};

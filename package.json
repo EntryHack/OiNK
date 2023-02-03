@@ -4,9 +4,10 @@
   "main": "dist/index.js",
   "license": "MIT",
   "scripts": {
-    "start": "node dist/index.js",
+    "start": "cross-env NODE_NO_WARNINGS=1 node -r module-alias/register dist/index.js",
     "build": "tsc",
-    "dev": "nodemon --watch src src/index.ts"
+    "dev": "cross-env NODE_NO_WARNINGS=1 nodemon -w src -r tsconfig-paths/register src/index.ts",
+    "create-accounts": "cross-env NODE_NO_WARNINGS=1 ts-node -r tsconfig-paths/register src/createAccounts.ts"
   },
   "repository": "https://github.com/EntryHack/OiNK.git",
   "author": "thoratica <me@tica.fun>",
@@ -14,15 +15,19 @@
     "@types/node": "^18.11.18",
     "@types/tough-cookie": "^4.0.2",
     "@types/tough-cookie-file-store": "^2.0.1",
+    "cross-env": "^7.0.3",
     "module-alias": "^2.2.2",
     "nodemon": "^2.0.20",
     "ts-node": "^10.9.1",
+    "tsconfig-paths": "^4.1.2",
     "typescript": "^4.9.4"
   },
   "dependencies": {
+    "dotenv": "^16.0.3",
     "fetch-cookie": "^2.1.0",
     "tough-cookie": "^4.1.2",
-    "tough-cookie-file-store": "^2.0.3"
+    "tough-cookie-file-store": "^2.0.3",
+    "typed-emitter": "^2.1.0"
   },
   "_moduleAliases": {
     "@": "dist"

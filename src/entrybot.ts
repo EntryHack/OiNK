@@ -1,10 +1,11 @@
 import EventEmitter from "events";
 import type TypedEmitter from "typed-emitter";
+import Post from "@/post";
 import { createFetch } from "@/utils/fetch";
 import { SIGNIN_BY_USERNAME } from "@/queries/user";
 import { SELECT_MINIMAL_DISCUSS_LIST } from "@/queries/community";
-import { Fetch, ResponseFail, ResponseSuccess } from "@/types";
-import { MinimalDiscuss, MinimalDiscussList } from "@/queries/community.d";
+import type { MinimalDiscussList } from "@/queries/community.d";
+import type { Fetch, ResponseFail, ResponseSuccess } from "@/types";
 
 type VariableKey = Variables | string | number | boolean | null | VariableKey[];
 interface Variables {
@@ -38,18 +39,20 @@ const credentials: Credentials = {
     csrfToken: undefined,
     xToken: undefined,
   },
-  updated: -1,
+  updated: 0,
 };
 
 type EntryBotEvents = {
-  login: (credentials: Credentials) => Promise<void> | void;
-  post: (post: MinimalDiscuss) => Promise<void> | void;
+  ready: (credentials: Credentials) => Promise<void> | void;
+  post: (post: Post) => Promise<void> | void;
 };
 
 export interface EntryBotConfig {
   readInterval: number;
   readCount: number;
   targetCategory: string;
+  cooldown: number;
+  maxRepliesBeforeCooldown: number;
   trimContent: boolean;
   cookieStorePath?: string;
   proxy?: any;
@@ -62,6 +65,7 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
   config: EntryBotConfig;
   fetch: Fetch;
   interval?: NodeJS.Timer;
+  replyHistory: number[] = [];
 
   constructor(username: string, password: string, config?: Partial<EntryBotConfig>) {
     super();
@@ -71,7 +75,9 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
     this.config = {
       readInterval: config?.readInterval ?? 500,
       readCount: config?.readCount ?? 10,
-      targetCategory: "free",
+      targetCategory: config?.targetCategory ?? "free",
+      cooldown: config?.cooldown ?? 1000 * 60 * 3.5,
+      maxRepliesBeforeCooldown: config?.maxRepliesBeforeCooldown ?? 8,
       trimContent: config?.trimContent ?? true,
       cookieStorePath: config?.cookieStorePath,
       proxy: config?.proxy,
@@ -81,7 +87,7 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
 
   async getCredentials(forceUpdate?: boolean): Promise<CredentialsResponse> {
     try {
-      if (!forceUpdate && Math.abs(credentials.updated - Date.now()) <= 3 * 1000 * 60 * 60)
+      if (!forceUpdate && Date.now() - credentials.updated <= 1000 * 60 * 60 * 3)
         return { success: true, data: credentials };
 
       const res = await this.fetch("https://playentry.org");
@@ -89,7 +95,7 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
       const html = await res.text();
 
       const __NEXT_DATA__ = /\<script id="__NEXT_DATA__".*\>((.|\n)+)\<\/script\>/.exec(html)?.[1];
-      if (!__NEXT_DATA__) return { success: false, message: "Cannot get __NEXT_DATA__" };
+      if (!__NEXT_DATA__) return { success: false, message: "Failed to get __NEXT_DATA__" };
 
       const parsedData = JSON.parse(__NEXT_DATA__);
 
@@ -148,10 +154,7 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
     let credentialsRes = await this.getCredentials();
     if (!credentialsRes.success) throw new Error("Failed to get credentials");
 
-    if (credentialsRes.data.logon) {
-      this.emit("login", credentialsRes.data);
-      return { success: true, data: credentialsRes.data };
-    }
+    if (credentialsRes.data.logon) return { success: true, data: credentialsRes.data };
 
     const signinRes = await this.gql(SIGNIN_BY_USERNAME, {
       username: this.#username,
@@ -161,10 +164,8 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
 
     if (signinRes.success) {
       credentialsRes = await this.getCredentials(true);
-      if (credentialsRes.success) {
-        this.emit("login", credentialsRes.data);
-        return { success: true, data: credentialsRes.data };
-      } else return { success: false, message: `Failed to login: ${credentialsRes.message}` };
+      if (credentialsRes.success) return { success: true, data: credentialsRes.data };
+      else return { success: false, message: `Failed to login: ${credentialsRes.message}` };
     }
 
     return { success: false, message: `Failed to login: ${signinRes.message}` };
@@ -197,7 +198,7 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
       const newPosts = postsRes.data.list.filter((post) => !readIds.includes(post.id));
 
       newPosts.forEach((post) => {
-        this.emit("post", post);
+        this.emit("post", new Post(post, this));
         readIds.push(post.id);
       });
     }, this.config.readInterval);
@@ -205,6 +206,14 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
 
   async unlistenPosts() {
     clearInterval(this.interval);
+  }
+
+  async listen(remember: boolean = true) {
+    const loginRes = await this.login(remember);
+    if (!loginRes.success) return;
+
+    this.listenPosts();
+    this.emit("ready", loginRes.data);
   }
 }
 

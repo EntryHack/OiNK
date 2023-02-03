@@ -250,3 +250,43 @@ export const SELECT_MINIMAL_DISCUSS_LIST = `query SELECT_MINIMAL_DISCUSS_LIST(
     }
   }
 }`;
+
+export const CREATE_COMMENT = `mutation CREATE_COMMENT(
+  $content: String
+  $image: String
+  $sticker: ID
+  $stickerItem: ID
+  $target: String
+  $targetSubject: String
+  $targetType: String
+  $groupId: ID
+) {
+  createComment(
+    content: $content
+    image: $image
+    sticker: $sticker
+    stickerItem: $stickerItem
+    target: $target
+    targetSubject: $targetSubject
+    targetType: $targetType
+    groupId: $groupId
+  ) {
+    comment {
+      id
+      content
+      created
+      image {
+        id
+        name
+        filename
+        imageType
+      }
+      sticker {
+        id
+        name
+        filename
+        imageType
+      }
+    }
+  }
+}`;

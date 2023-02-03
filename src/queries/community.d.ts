@@ -1,3 +1,5 @@
+import { MinimalImage } from "./common.d";
+
 export interface MinimalDiscuss {
   id: string;
   content: string;
@@ -7,32 +9,36 @@ export interface MinimalDiscuss {
     id: string;
     username: string;
     nickname: string;
-    profileImage: {
-      id: string;
-      filename: string;
-      imageType: string;
-    } | null;
-    coverImage: {
-      id: string;
-      filename: string;
-      imageType: string;
-    } | null;
+    profileImage: MinimalImage;
+    coverImage: MinimalImage;
     role: "member" | "teacher" | "student" | "admin";
   };
-  image: {
-    id: string;
-    name: string;
-    filename: string;
-    imageType: string;
-  } | null;
-  sticker: {
-    id: string;
-    name: string;
-    filename: string;
-    imageType: string;
-  } | null;
+  image: MinimalImage;
+  sticker: MinimalImage;
 }
 
 export interface MinimalDiscussList {
   list: MinimalDiscuss[];
+}
+
+export interface CreateComment {
+  comment: {
+    id: string;
+    content: string;
+    created: string;
+    image: MinimalImage;
+    sticker: MinimalImage;
+  };
+}
+
+export interface CreateCommentVariables extends StringKey {
+  content?: string;
+  image?: string;
+  sticker?: string;
+  stickerItem?: string;
+  target?: string;
+  targetSubject?: "discuss";
+  targetType?: "individual";
+  groupId?: string;
+  [key: string]: any;
 }

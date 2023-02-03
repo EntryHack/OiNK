@@ -2,15 +2,9 @@ import EventEmitter from "events";
 import type TypedEmitter from "typed-emitter";
 import { createFetch } from "@/utils/fetch";
 import { SIGNIN_BY_USERNAME } from "@/queries/user";
+import { SELECT_MINIMAL_DISCUSS_LIST } from "@/queries/community";
 import { Fetch, ResponseFail, ResponseSuccess } from "@/types";
-
-export interface EntryBotConfig {
-  readInterval: number;
-  readCount: number;
-  trimContent: boolean;
-  fileCookieStorePath?: string;
-  proxy?: any;
-}
+import { MinimalDiscuss, MinimalDiscussList } from "@/queries/community.d";
 
 type VariableKey = Variables | string | number | boolean | null | VariableKey[];
 interface Variables {
@@ -30,19 +24,9 @@ export interface Credentials {
   updated: number;
 }
 
-interface CredentialsResponseSuccess {
-  success: true;
-  data: Credentials;
-}
-
-interface CredentialsResponseFail {
-  success: false;
-  message?: string;
-}
-
 type GraphQLResponse<T> = ResponseSuccess<T> | ResponseFail;
 type LoginResponse = ResponseSuccess<Credentials> | ResponseFail;
-type CredentialsResponse = CredentialsResponseSuccess | CredentialsResponseFail;
+type CredentialsResponse = ResponseSuccess<Credentials> | ResponseFail;
 
 const credentials: Credentials = {
   logon: false,
@@ -59,7 +43,17 @@ const credentials: Credentials = {
 
 type EntryBotEvents = {
   login: (credentials: Credentials) => Promise<void> | void;
+  post: (post: MinimalDiscuss) => Promise<void> | void;
 };
+
+export interface EntryBotConfig {
+  readInterval: number;
+  readCount: number;
+  targetCategory: string;
+  trimContent: boolean;
+  cookieStorePath?: string;
+  proxy?: any;
+}
 
 class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) {
   logon: boolean;
@@ -67,6 +61,7 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
   #password: string;
   config: EntryBotConfig;
   fetch: Fetch;
+  interval?: NodeJS.Timer;
 
   constructor(username: string, password: string, config?: Partial<EntryBotConfig>) {
     super();
@@ -75,12 +70,13 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
     this.#password = password;
     this.config = {
       readInterval: config?.readInterval ?? 500,
-      readCount: config?.readCount ?? 4,
+      readCount: config?.readCount ?? 10,
+      targetCategory: "free",
       trimContent: config?.trimContent ?? true,
-      fileCookieStorePath: config?.fileCookieStorePath,
+      cookieStorePath: config?.cookieStorePath,
       proxy: config?.proxy,
     };
-    this.fetch = createFetch(config?.fileCookieStorePath);
+    this.fetch = createFetch(config?.cookieStorePath);
   }
 
   async getCredentials(forceUpdate?: boolean): Promise<CredentialsResponse> {
@@ -119,7 +115,7 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
     query: string,
     variables: Variables = {},
     init: Omit<RequestInit, "body" | "method"> = {}
-  ): Promise<GraphQLResponse<T>> {
+  ): Promise<GraphQLResponse<{ [key: string]: T }>> {
     try {
       const credentialsRes = await this.getCredentials();
       if (!credentialsRes.success) return credentialsRes;
@@ -172,6 +168,43 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
     }
 
     return { success: false, message: `Failed to login: ${signinRes.message}` };
+  }
+
+  async getPosts(): Promise<ResponseSuccess<MinimalDiscussList> | ResponseFail> {
+    const discussListRes = await this.gql<MinimalDiscussList>(SELECT_MINIMAL_DISCUSS_LIST, {
+      category: this.config.targetCategory,
+      searchType: "scroll",
+      pageParam: {
+        display: this.config.readCount,
+        sort: "created",
+      },
+    });
+    if (!discussListRes.success)
+      return { success: false, message: `Failed to get discuss list: ${discussListRes.message}` };
+
+    return { success: true, data: discussListRes.data.discussList };
+  }
+
+  async listenPosts() {
+    const postsRes = await this.getPosts();
+    if (!postsRes.success) return;
+    const readIds = postsRes.data.list.map((post) => post.id);
+
+    this.interval = setInterval(async () => {
+      const postsRes = await this.getPosts();
+      if (!postsRes.success) return;
+
+      const newPosts = postsRes.data.list.filter((post) => !readIds.includes(post.id));
+
+      newPosts.forEach((post) => {
+        this.emit("post", post);
+        readIds.push(post.id);
+      });
+    }, this.config.readInterval);
+  }
+
+  async unlistenPosts() {
+    clearInterval(this.interval);
   }
 }
 

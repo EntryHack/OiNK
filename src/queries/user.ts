@@ -136,8 +136,22 @@ export const SIGNUP_BY_USERNAME = `mutation (
   }
 }`;
 
-export const USER_EXITS = `query ($username: String) {
-  existsUser(username: $username) {
+export const USER_EXITS = `query ($username: String, $nickname: String, $email: String) {
+  existsUser(username: $username, nickname: $nickname, email: $email) {
     exists
+  }
+}`;
+
+export const CHECK_WORD = `query ($type: String, $word: String) {
+  prohibitedWord(type: $type, word: $word) {
+    status
+    result
+  }
+}`;
+
+export const CHANGE_USER_EMAIL = `mutation ($email: String!) {
+  changeUserEmail(email: $email) {
+    status
+    result
   }
 }`;

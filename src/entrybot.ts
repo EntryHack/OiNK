@@ -141,6 +141,8 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
       const json: { errors?: { statusCode?: number }[]; data?: any; extensions: { runtime?: number } } =
         await res.json();
 
+      console.log(json);
+
       if (json.errors?.[0])
         return { success: false, ...(json.errors[0].statusCode && { message: json.errors[0].statusCode.toString() }) };
 

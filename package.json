@@ -7,7 +7,7 @@
     "start": "cross-env NODE_NO_WARNINGS=1 node -r module-alias/register dist/index.js",
     "build": "tsc",
     "dev": "cross-env NODE_NO_WARNINGS=1 nodemon -w src -r tsconfig-paths/register src/index.ts",
-    "create-accounts": "cross-env NODE_NO_WARNINGS=1 ts-node -r tsconfig-paths/register src/createAccounts.ts"
+    "create-accounts": "cross-env NODE_NO_WARNINGS=1 ts-node -r tsconfig-paths/register src/create-accounts.ts"
   },
   "repository": "https://github.com/EntryHack/OiNK.git",
   "author": "thoratica <me@tica.fun>",

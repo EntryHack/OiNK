@@ -60,19 +60,20 @@ export interface EntryBotConfig {
 
 class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) {
   logon: boolean;
-  #username: string;
-  #password: string;
+  username: string;
+  password: string;
   config: EntryBotConfig;
   fetch: Fetch;
   cookieJar: CookieJar;
   interval?: NodeJS.Timer;
-  replyHistory: number[] = [];
+  replyHistory: { [username: string]: { count: number; lastReply: number | undefined; bot: EntryBot } };
+  currentReplyAccount: string | undefined;
 
   constructor(username: string, password: string, cookieJar: CookieJar, config?: Partial<EntryBotConfig>) {
     super();
     this.logon = false;
-    this.#username = username;
-    this.#password = password;
+    this.username = username;
+    this.password = password;
     this.cookieJar = cookieJar;
     this.config = {
       readInterval: config?.readInterval ?? 500,
@@ -84,11 +85,17 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
       proxy: config?.proxy,
     };
     this.fetch = createFetch(cookieJar);
+    this.replyHistory = { [username]: { count: 0, lastReply: undefined, bot: this } };
+    this.currentReplyAccount = username;
   }
 
   async getCredentials(forceUpdate?: boolean, fetch: Fetch = this.fetch): Promise<CredentialsResponse> {
     try {
-      if (!forceUpdate && Date.now() - credentials.updated <= 1000 * 60 * 60 * 3)
+      if (
+        !forceUpdate &&
+        Date.now() - credentials.updated <= 1000 * 60 * 60 * 3 &&
+        credentials.user.username === this.username
+      )
         return { success: true, data: credentials };
 
       const res = await fetch("https://playentry.org");
@@ -106,7 +113,7 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
       const username = user?.username;
       const xToken = user?.xToken;
 
-      if (this.logon && this.#username !== username) return await this.getCredentials(true, fetch);
+      if (this.logon && this.username !== username) return await this.getCredentials(true, fetch);
 
       credentials.logon = !!user;
       credentials.user = { id: _id, username };
@@ -159,15 +166,17 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
     if (credentialsRes.data.logon) return { success: true, data: credentialsRes.data };
 
     const signinRes = await this.gql(SIGNIN_BY_USERNAME, {
-      username: this.#username,
-      password: this.#password,
+      username: this.username,
+      password: this.password,
       rememberme: remember,
     });
 
     if (signinRes.success) {
       credentialsRes = await this.getCredentials(true);
-      if (credentialsRes.success) return { success: true, data: credentialsRes.data };
-      else return { success: false, message: `Failed to login: ${credentialsRes.message}` };
+      if (credentialsRes.success) {
+        this.logon = credentialsRes.data.logon;
+        return { success: true, data: credentialsRes.data };
+      } else return { success: false, message: `Failed to login: ${credentialsRes.message}` };
     }
 
     return { success: false, message: `Failed to login: ${signinRes.message}` };

@@ -11,5 +11,5 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*", "axios.d.ts"]
+  "include": ["src/**/*"]
 }

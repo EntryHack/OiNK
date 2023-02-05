@@ -1,10 +1,14 @@
 import EntryBot from "@/entrybot";
+import { CookieJar } from "tough-cookie";
+import { FileCookieStore } from "tough-cookie-file-store";
 import "./config";
 
-const bot = new EntryBot(process.env.BOT_USERNAME!, process.env.BOT_PASSWORD!, {
-  maxRepliesBeforeCooldown: 3,
-  cookieStorePath: "./cookie.json",
-});
+const bot = new EntryBot(
+  process.env.BOT_USERNAME!,
+  process.env.BOT_PASSWORD!,
+  new CookieJar(new FileCookieStore("./cookie.json")),
+  { maxRepliesBeforeCooldown: 3 }
+);
 
 bot.once("ready", (credentials) => console.log(`${credentials.user.username}으로 로그인했습니다`));
 

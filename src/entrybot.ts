@@ -1,5 +1,6 @@
 import EventEmitter from "events";
 import type TypedEmitter from "typed-emitter";
+import type { CookieJar } from "tough-cookie";
 import Post from "@/post";
 import { createFetch } from "@/utils/fetch";
 import { SIGNIN_BY_USERNAME } from "@/queries/user";
@@ -54,7 +55,6 @@ export interface EntryBotConfig {
   cooldown: number;
   maxRepliesBeforeCooldown: number;
   trimContent: boolean;
-  cookieStorePath?: string;
   proxy?: any;
 }
 
@@ -64,14 +64,16 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
   #password: string;
   config: EntryBotConfig;
   fetch: Fetch;
+  cookieJar: CookieJar;
   interval?: NodeJS.Timer;
   replyHistory: number[] = [];
 
-  constructor(username: string, password: string, config?: Partial<EntryBotConfig>) {
+  constructor(username: string, password: string, cookieJar: CookieJar, config?: Partial<EntryBotConfig>) {
     super();
     this.logon = false;
     this.#username = username;
     this.#password = password;
+    this.cookieJar = cookieJar;
     this.config = {
       readInterval: config?.readInterval ?? 500,
       readCount: config?.readCount ?? 10,
@@ -79,18 +81,17 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
       cooldown: config?.cooldown ?? 1000 * 60 * 3.5,
       maxRepliesBeforeCooldown: config?.maxRepliesBeforeCooldown ?? 8,
       trimContent: config?.trimContent ?? true,
-      cookieStorePath: config?.cookieStorePath,
       proxy: config?.proxy,
     };
-    this.fetch = createFetch(config?.cookieStorePath);
+    this.fetch = createFetch(cookieJar);
   }
 
-  async getCredentials(forceUpdate?: boolean): Promise<CredentialsResponse> {
+  async getCredentials(forceUpdate?: boolean, fetch: Fetch = this.fetch): Promise<CredentialsResponse> {
     try {
       if (!forceUpdate && Date.now() - credentials.updated <= 1000 * 60 * 60 * 3)
         return { success: true, data: credentials };
 
-      const res = await this.fetch("https://playentry.org");
+      const res = await fetch("https://playentry.org");
       if (!res.ok) return { success: false, message: res.statusText };
       const html = await res.text();
 
@@ -105,7 +106,7 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
       const username = user?.username;
       const xToken = user?.xToken;
 
-      if (this.logon && this.#username !== username) return await this.getCredentials(true);
+      if (this.logon && this.#username !== username) return await this.getCredentials(true, fetch);
 
       credentials.logon = !!user;
       credentials.user = { id: _id, username };
@@ -120,14 +121,15 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
   async gql<T>(
     query: string,
     variables: Variables = {},
-    init: Omit<RequestInit, "body" | "method"> = {}
+    init: Omit<RequestInit, "body" | "method"> = {},
+    fetch: Fetch = this.fetch
   ): Promise<GraphQLResponse<{ [key: string]: T }>> {
     try {
-      const credentialsRes = await this.getCredentials();
+      const credentialsRes = await this.getCredentials(false, fetch);
       if (!credentialsRes.success) return credentialsRes;
       const credentials = credentialsRes.data;
 
-      const res = await this.fetch("https://playentry.org/graphql", {
+      const res = await fetch("https://playentry.org/graphql", {
         ...init,
         method: "POST",
         headers: {
@@ -140,8 +142,6 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
       });
       const json: { errors?: { statusCode?: number }[]; data?: any; extensions: { runtime?: number } } =
         await res.json();
-
-      console.log(json);
 
       if (json.errors?.[0])
         return { success: false, ...(json.errors[0].statusCode && { message: json.errors[0].statusCode.toString() }) };

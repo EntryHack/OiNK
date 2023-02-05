@@ -44,10 +44,8 @@ $ yarn start:pm2
 ## 봇 실행 (Nodemon)
 
 ```bash
-$ npm run build
 $ npm run dev
 # 또는
-$ yarn build
 $ yarn dev
 ```
 

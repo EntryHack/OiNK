@@ -1,7 +1,7 @@
 import type EntryBot from "@/entrybot";
 import { CREATE_COMMENT } from "@/queries/community";
 import type { MinimalImage } from "@/queries/common.d";
-import type { CreateComment, CreateCommentVariables, MinimalDiscuss } from "./queries/community.d";
+import type { CreateComment, CreateCommentVariables, MinimalDiscuss } from "@/queries/community.d";
 import type { ResponseFail, ResponseSuccess } from "@/types";
 
 class Post implements MinimalDiscuss {

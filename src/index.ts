@@ -1,7 +1,7 @@
-import EntryBot from "@/entrybot";
 import { CookieJar } from "tough-cookie";
 import { FileCookieStore } from "tough-cookie-file-store";
-import "./config";
+import EntryBot from "@/entrybot";
+import "@/config";
 
 const bot = new EntryBot(
   process.env.BOT_USERNAME!,

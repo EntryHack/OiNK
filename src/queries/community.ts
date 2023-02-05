@@ -221,11 +221,13 @@ export const SELECT_MINIMAL_DISCUSS_LIST = `query SELECT_MINIMAL_DISCUSS_LIST(
         nickname
         profileImage {
           id
+          name
           filename
           imageType
         }
         coverImage {
           id
+          name
           filename
           imageType
         }
@@ -233,6 +235,67 @@ export const SELECT_MINIMAL_DISCUSS_LIST = `query SELECT_MINIMAL_DISCUSS_LIST(
           following
           follower
         }
+        description
+        role
+      }
+      image {
+        id
+        name
+        filename
+        imageType
+      }
+      sticker {
+        id
+        name
+        filename
+        imageType
+      }
+    }
+  }
+}`;
+
+export const CREATE_ENTRYSTORY = `mutation CREATE_ENTRYSTORY(
+  $content: String
+  $text: String
+  $image: String
+  $sticker: ID
+  $stickerItem: ID
+  $cursor: String
+) {
+  createEntryStory(
+    content: $content
+    text: $text
+    image: $image
+    sticker: $sticker
+    stickerItem: $stickerItem
+    cursor: $cursor
+  ) {
+    discuss {
+      id
+      content
+      created
+      category
+      user {
+        id
+        username
+        nickname
+        profileImage {
+          id
+          name
+          filename
+          imageType
+        }
+        coverImage {
+          id
+          name
+          filename
+          imageType
+        }
+        status {
+          following
+          follower
+        }
+        description
         role
       }
       image {
@@ -275,6 +338,29 @@ export const CREATE_COMMENT = `mutation CREATE_COMMENT(
       id
       content
       created
+      user {
+        id
+        username
+        nickname
+        profileImage {
+          id
+          name
+          filename
+          imageType
+        }
+        coverImage {
+          id
+          name
+          filename
+          imageType
+        }
+        status {
+          following
+          follower
+        }
+        description
+        role
+      }
       image {
         id
         name
@@ -288,5 +374,11 @@ export const CREATE_COMMENT = `mutation CREATE_COMMENT(
         imageType
       }
     }
+  }
+}`;
+
+export const REMOVE_COMMENT = `mutation REMOVE_COMMENT($id: ID) {
+  removeComment(id: $id) {
+    id
   }
 }`;

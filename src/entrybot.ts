@@ -1,12 +1,13 @@
 import EventEmitter from "events";
 import type TypedEmitter from "typed-emitter";
-import type { CookieJar } from "tough-cookie";
-import Post from "@/post";
-import { createFetch } from "@/utils/fetch";
-import { SIGNIN_BY_USERNAME } from "@/queries/user";
-import { SELECT_MINIMAL_DISCUSS_LIST } from "@/queries/community";
-import type { MinimalDiscussList } from "@/queries/community.d";
-import type { Fetch, ResponseFail, ResponseSuccess } from "@/types";
+import { CookieJar } from "tough-cookie";
+import Post from "./post";
+import { createFetch } from "./utils/fetch";
+import { SIGNIN_BY_USERNAME } from "./queries/user";
+import { CREATE_ENTRYSTORY, SELECT_MINIMAL_DISCUSS_LIST } from "./queries/community";
+import type { CreateEntryStory, CreateEntryStoryVariables, MinimalDiscussList } from "./queries/community.d";
+import type { Fetch, ResponseFail, ResponseSuccess } from "./types";
+import accounts from "../accounts.json";
 
 type VariableKey = Variables | string | number | boolean | null | VariableKey[];
 interface Variables {
@@ -53,6 +54,7 @@ export interface EntryBotConfig {
   readCount: number;
   targetCategory: string;
   cooldown: number;
+  maxPostsBeforeCooldown: number;
   maxRepliesBeforeCooldown: number;
   trimContent: boolean;
   proxy?: any;
@@ -66,7 +68,9 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
   fetch: Fetch;
   cookieJar: CookieJar;
   interval?: NodeJS.Timer;
+  postHistory: { [username: string]: { count: number; lastPost: number | undefined; bot: EntryBot } };
   replyHistory: { [username: string]: { count: number; lastReply: number | undefined; bot: EntryBot } };
+  currentPostAccount: string | undefined;
   currentReplyAccount: string | undefined;
 
   constructor(username: string, password: string, cookieJar: CookieJar, config?: Partial<EntryBotConfig>) {
@@ -80,12 +84,15 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
       readCount: config?.readCount ?? 10,
       targetCategory: config?.targetCategory ?? "free",
       cooldown: config?.cooldown ?? 1000 * 60 * 3.5,
+      maxPostsBeforeCooldown: config?.maxPostsBeforeCooldown ?? 4,
       maxRepliesBeforeCooldown: config?.maxRepliesBeforeCooldown ?? 8,
       trimContent: config?.trimContent ?? true,
       proxy: config?.proxy,
     };
     this.fetch = createFetch(cookieJar);
     this.replyHistory = { [username]: { count: 0, lastReply: undefined, bot: this } };
+    this.postHistory = { [username]: { count: 0, lastPost: undefined, bot: this } };
+    this.currentPostAccount = username;
     this.currentReplyAccount = username;
   }
 
@@ -195,6 +202,75 @@ class EntryBot extends (EventEmitter as new () => TypedEmitter<EntryBotEvents>) 
       return { success: false, message: `Failed to get discuss list: ${discussListRes.message}` };
 
     return { success: true, data: discussListRes.data.discussList };
+  }
+
+  async createPost(
+    content?: string,
+    attachments?: { image?: string; sticker?: string }
+  ): Promise<ResponseSuccess<CreateEntryStory> | ResponseFail> {
+    Object.entries(this.postHistory).forEach(async ([username, history]) => {
+      if (history.lastPost && Date.now() - history.lastPost > 1000 * 60 * 3.5) {
+        delete this.postHistory[username];
+        accounts.push({ username, password: history.bot.password });
+
+        if (username === this.currentPostAccount) this.currentPostAccount = undefined;
+      }
+    });
+
+    if (!this.currentPostAccount) {
+      if (Object.keys(this.postHistory).length === 0) {
+        this.postHistory = {
+          [this.username]: { count: 0, lastPost: undefined, bot: this },
+        };
+        this.currentPostAccount = this.username;
+      } else {
+        this.currentPostAccount = Object.keys(this.postHistory)[0];
+      }
+    }
+
+    const postHistory = this.postHistory[this.currentPostAccount];
+
+    if (postHistory.count < this.config.maxPostsBeforeCooldown) {
+      await postHistory.bot.login();
+
+      const postRes = await postHistory.bot.gql<CreateEntryStory>(CREATE_ENTRYSTORY, {
+        content,
+        ...(attachments?.image && { image: attachments?.image }),
+        ...(attachments?.sticker && { stickerItem: attachments?.sticker }),
+      } as CreateEntryStoryVariables);
+      if (!postRes.success) {
+        if (postRes.message === "429") {
+          postHistory.count = this.config.maxPostsBeforeCooldown;
+          postHistory.lastPost = Date.now();
+
+          const subAccount = accounts.shift();
+          if (!subAccount) return { success: false, message: "Account insufficient" };
+          this.postHistory[subAccount.username] = {
+            count: 0,
+            lastPost: undefined,
+            bot: new EntryBot(subAccount.username, subAccount.password, new CookieJar()),
+          };
+          this.currentPostAccount = subAccount.username;
+          return await this.createPost(content, attachments);
+        }
+        return { success: false, message: `Failed to create post: ${postRes.message}` };
+      }
+
+      postHistory.count += 1;
+      postHistory.lastPost = Date.now();
+
+      return { success: true, data: postRes.data.createComment };
+    } else {
+      const subAccount = accounts.shift();
+      if (!subAccount) return { success: false, message: "Account insufficient" };
+      this.postHistory[subAccount.username] = {
+        count: 0,
+        lastPost: undefined,
+        bot: new EntryBot(subAccount.username, subAccount.password, new CookieJar()),
+      };
+      this.currentPostAccount = subAccount.username;
+      return await this.createPost(content, attachments);
+    }
   }
 
   async listenPosts() {

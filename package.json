@@ -7,8 +7,8 @@
     "start": "cross-env NODE_NO_WARNINGS=1 node -r module-alias/register dist/index.js",
     "start:pm2": "cross-env NODE_NO_WARNINGS=1 pm2 start dist/index.js --node-args=\"-r module-alias/register\"",
     "build": "tsc",
-    "dev": "cross-env NODE_NO_WARNINGS=1 nodemon -w src -r tsconfig-paths/register src/index.ts",
-    "create-accounts": "cross-env NODE_NO_WARNINGS=1 ts-node -r tsconfig-paths/register src/create-accounts.ts"
+    "dev": "cross-env NODE_NO_WARNINGS=1 tsx watch src/index.ts",
+    "create-accounts": "cross-env NODE_NO_WARNINGS=1 tsx src/create-accounts.ts"
   },
   "repository": "https://github.com/EntryHack/OiNK.git",
   "author": "thoratica <me@tica.fun>",
@@ -22,12 +22,15 @@
     "pm2": "^5.2.2",
     "ts-node": "^10.9.1",
     "tsconfig-paths": "^4.1.2",
+    "tsx": "^3.12.2",
     "typescript": "^4.9.4"
   },
   "dependencies": {
+    "better-sqlite3": "^8.0.1",
     "chatgpt": "^4.1.1",
     "dotenv": "^16.0.3",
     "fetch-cookie": "^2.1.0",
+    "quick.db": "^9.0.8",
     "tough-cookie": "^4.1.2",
     "tough-cookie-file-store": "^2.0.3",
     "typed-emitter": "^2.1.0"

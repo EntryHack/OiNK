@@ -1,17 +1,18 @@
+import { CookieJar } from "tough-cookie";
 import EntryBot from "./entrybot";
-import { CREATE_COMMENT } from "./queries/community";
+import { CREATE_COMMENT, REMOVE_COMMENT } from "./queries/community";
 import type { MinimalImage } from "./queries/common.d";
-import type { CreateComment, CreateCommentVariables, MinimalDiscuss } from "./queries/community.d";
+import type { CreateComment, CreateCommentVariables, MinimalComment } from "./queries/community.d";
 import type { ResponseFail, ResponseSuccess } from "./types";
 import accounts from "../accounts.json";
-import { CookieJar } from "tough-cookie";
-import Comment from "./comment";
 
-class Post implements MinimalDiscuss {
+const unusedAccounts = JSON.parse(JSON.stringify(accounts));
+
+class Comment implements MinimalComment {
   id: string;
   content: string;
   created: string;
-  category: string;
+  parentId: string;
   user: {
     id: string;
     username: string;
@@ -26,14 +27,14 @@ class Post implements MinimalDiscuss {
   sticker: MinimalImage;
   bot: EntryBot;
 
-  constructor(post: MinimalDiscuss, bot: EntryBot) {
-    this.id = post.id;
-    this.content = bot.config.trimContent ? post.content.trim() : post.content;
-    this.created = post.created;
-    this.category = post.category;
-    this.user = post.user;
-    this.image = post.image;
-    this.sticker = post.sticker;
+  constructor(comment: MinimalComment, parentId: string, bot: EntryBot) {
+    this.id = comment.id;
+    this.content = bot.config.trimContent ? comment.content.trim() : comment.content;
+    this.created = comment.created;
+    this.parentId = parentId;
+    this.user = comment.user;
+    this.image = comment.image;
+    this.sticker = comment.sticker;
     this.bot = bot;
   }
 
@@ -112,6 +113,24 @@ class Post implements MinimalDiscuss {
       return await this.reply(content, attachments);
     }
   }
+
+  async remove(): Promise<ResponseSuccess<{ id: string }> | ResponseFail> {
+    if (this.user.username === process.env.BOT_USERNAME) {
+      const removeRes = await this.bot.gql<{ id: string }>(REMOVE_COMMENT, { id: this.id });
+      if (!removeRes.success) return { success: false, message: `Failed to remove comment: ${removeRes.message}` };
+      return { success: true, data: removeRes.data.removeComment };
+    } else {
+      const account = accounts.find(({ username }) => username === this.user.username);
+      if (!account) return { success: false, message: "Comment is not written by you" };
+
+      const bot = new EntryBot(account.username, account.password, new CookieJar());
+      await bot.login();
+
+      const removeRes = await bot.gql<{ id: string }>(REMOVE_COMMENT, { id: this.id });
+      if (!removeRes.success) return { success: false, message: `Failed to remove comment: ${removeRes.message}` };
+      return { success: true, data: removeRes.data.removeComment };
+    }
+  }
 }
 
-export default Post;
+export default Comment;
